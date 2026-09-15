@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>쿠키런 크럼블 - 장비 스탯 비교 분석기</title>
+  <!-- Tesseract.js OCR CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <style>
+    :root {
+      --bg-color: #101216;
+      --card-bg: #181c24;
+      --card-inner: #11141a;
+      --border-color: #2b3240;
+      --primary: #f59e0b;
+      --text-main: #f3f4f6;
+      --text-sub: #9ca3af;
+      --accent-main: #8b5cf6;
+      --accent-high: #10b981;
+      --accent-mid: #f59e0b;
+      --accent-low: #ef4444;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans KR", sans-serif;
+      margin: 0;
+      padding: 12px 10px;
+      background: var(--bg-color);
+      color: var(--text-main);
+      line-height: 1.35;
+    }
+
+    #appContainer {
+      max-width: 820px;
+      margin: 0 auto;
+    }
+
+    .header { text-align: center; margin-bottom: 10px; }
+    h1 { font-size: 1.25rem; color: var(--primary); margin: 0 0 4px 0; }
+    p.desc { font-size: 0.78rem; color: var(--text-sub); margin: 0; }
+
+    /* 업로드 영역 */
+    .upload-box {
+      display: block;
+      background: var(--card-bg);
+      border: 2px dashed #4b5563;
+      border-radius: 10px;
+      padding: 16px 12px;
+      text-align: center;
+      margin: 10px 0 14px;
+      cursor: pointer;
+      transition: 0.2s;
+    }
+    .upload-box:active { background: #222733; border-color: var(--primary); }
+    .upload-btn {
+      display: inline-block;
+      background: var(--primary);
+      color: #11141a;
+      font-weight: 700;
+      font-size: 0.86rem;
+      padding: 7px 18px;
+      border-radius: 6px;
+      pointer-events: none;
+    }
+    .upload-hint { font-size: 0.72rem; color: var(--text-sub); margin-top: 6px; }
+    #status { margin-top: 8px; font-weight: 700; color: #60a5fa; font-size: 0.82rem; min-height: 18px; }
+    .preview-img { max-height: 130px; border-radius: 6px; display: none; margin: 8px auto 0; border: 1px solid var(--border-color); }
+
+    /* 좌/우 장비 비교 그리드 (한 화면에 둘 다 표시) */
+    .gear-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
+    @media (min-width: 620px) {
+      .gear-grid { grid-template-columns: 1fr 1fr; }
+    }
+
+    .gear-box {
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      padding: 12px 10px;
+    }
+
+    .box-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid var(--border-color);
+    }
+    .box-title { font-size: 0.92rem; font-weight: 700; display: flex; align-items: center; gap: 6px; }
+    .tag-existing { color: #60a5fa; }
+    .tag-new { color: #f59e0b; }
+
+    /* 장비 메타 정보 바 (레벨, 등급, 강화) */
+    .meta-row {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 10px;
+      align-items: center;
+    }
+    .meta-row .item { flex: 1; min-width: 0; }
+    .meta-row .item-small { flex: 0.7; min-width: 0; }
+    label {
+      display: block;
+      font-size: 0.68rem;
+      color: var(--text-sub);
+      font-weight: 600;
+      margin-bottom: 3px;
+    }
+    select, input[type="number"] {
+      background: #1c212c;
+      border: 1px solid #3b4252;
+      color: #fff;
+      padding: 6px;
+      border-radius: 4px;
+      font-size: 0.82rem;
+      outline: none;
+      width: 100%;
+    }
+    select:focus, input:focus { border-color: var(--primary); }
+
+    .multiplier-tag {
+      font-size: 0.74rem;
+      font-weight: bold;
+      color: var(--primary);
+      padding: 4px 6px;
+      background: #282415;
+      border-radius: 4px;
+      border: 1px solid #614a1a;
+      white-space: nowrap;
+      margin-top: 15px;
+    }
+
+    /* 스탯 리스트 & 카드 */
+    .stat-list { display: flex; flex-direction: column; gap: 8px; }
+    .stat-card {
+      background: var(--card-inner);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      padding: 8px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .stat-input-line {
+      display: grid;
+      grid-template-columns: auto 1.3fr 1.1fr;
+      gap: 6px;
+      align-items: center;
+    }
+    .badge {
+      font-size: 0.68rem;
+      padding: 2px 5px;
+      border-radius: 3px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .badge-main { background: var(--accent-main); color: white; }
+    .badge-sub { background: #3b82f6; color: white; }
+
+    .stat-result-line {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-top: 4px;
+      border-top: 1px dashed #282e3a;
+    }
+    .range-text { font-size: 0.72rem; color: var(--text-sub); }
+    .score-box { display: flex; align-items: center; gap: 6px; }
+    .percent-text { font-size: 0.9rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+    .progress-bar-bg {
+      width: 60px;
+      height: 5px;
+      background: #2b3240;
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    .progress-bar-fill { height: 100%; border-radius: 3px; }
+
+    .p-high { color: var(--accent-high); }
+    .p-mid { color: var(--accent-mid); }
+    .p-low { color: var(--accent-low); }
+
+    .footer-note { text-align: center; margin-top: 14px; font-size: 0.74rem; color: #64748b; }
+  </style>
+</head>
+<body>
+  <div id="appContainer">
+    <div class="header">
+      <h1>쿠키런 크럼블 장비 비교기</h1>
+      <p class="desc">스크린샷 등록 또는 직접 입력으로 <strong>[메인 1개 + 보조 2개]</strong>를 실시간 계산합니다.</p>
+    </div>
+
+    <!-- 사진 업로드 박스 -->
+    <label class="upload-box" for="fileInput">
+      <div class="upload-btn">📷 장비 스크린샷 선택하기</div>
+      <div class="upload-hint">스마트폰 갤러리에서 선택 (PC는 화면 어디서든 Ctrl+V 가능)</div>
+      <input type="file" id="fileInput" accept="image/*" style="position: absolute; opacity: 0; width: 1px; height: 1px; pointer-events: none;">
+      <div id="status"></div>
+      <img id="preview" class="preview-img" alt="미리보기">
+    </label>
+
+    <!-- 좌/우 장비 한 화면 동시 표시 그리드 -->
+    <div class="gear-grid">
+      <!-- 1. 기존 장비 (좌측) -->
+      <div class="gear-box" id="boxGear1">
+        <div class="box-header">
+          <span class="box-title tag-existing">🛡️ 기존 장비 (장착중)</span>
+          <button onclick="resetGear('g1')" style="background:transparent; border:none; color:var(--text-sub); font-size:0.75rem; cursor:pointer;">초기화</button>
+        </div>
+
+        <div class="meta-row">
+          <div class="item-small">
+            <label>레벨</label>
+            <input type="number" id="g1Level" placeholder="Lv." oninput="calculate()">
+          </div>
+          <div class="item">
+            <label>등급</label>
+            <select id="g1Grade" onchange="calculate()">
+              <option value="이터널" selected>이터널</option>
+              <option value="레전더리">레전더리</option>
+            </select>
+          </div>
+          <div class="item">
+            <label>강화 단계</label>
+            <select id="g1Enh" onchange="calculate()">
+              <option value="0">+0 ~ +4 (x1.0)</option>
+              <option value="5">+5 ~ +9 (x1.3)</option>
+              <option value="10" selected>+10 ~ +14 (x1.7)</option>
+              <option value="15">+15 ~ +19 (x2.3)</option>
+              <option value="20">+20강 (x3.0)</option>
+            </select>
+          </div>
+          <div class="multiplier-tag" id="g1MultTag">x1.7</div>
+        </div>
+
+        <div class="stat-list">
+          <div class="stat-card">
+            <div class="stat-input-line">
+              <span class="badge badge-main">메인</span>
+              <select id="g1MainName" onchange="calculate()">
+                <option value="치명저항" selected>치명저항 (%)</option>
+                <option value="명중">명중</option>
+                <option value="공격력">공격력</option>
+                <option value="방어력">방어력</option>
+                <option value="체력">체력</option>
+                <option value="치명확률">치명확률 (%)</option>
+                <option value="치명피해">치명피해 (%)</option>
+                <option value="스킬증폭">스킬증폭 (%)</option>
+                <option value="피해감소">피해감소 (%)</option>
+                <option value="집중">집중</option>
+                <option value="저항">저항</option>
+                <option value="회피">회피</option>
+                <option value="스킬가속">스킬가속</option>
+              </select>
+              <input type="number" step="0.01" id="g1MainVal" placeholder="수치 입력" oninput="calculate()">
+            </div>
+            <div class="stat-result-line">
+              <span class="range-text">슬롯 고정 스탯</span>
+              <span style="color:#a78bfa; font-weight:bold; font-size:0.8rem;">고정값</span>
+            </div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-input-line">
+              <span class="badge badge-sub">보조 1</span>
+              <select id="g1Sub1Name" onchange="calculate()">
+                <option value="치명확률" selected>치명확률 (%)</option>
+                <option value="스킬증폭">스킬증폭 (%)</option>
+                <option value="치명피해">치명피해 (%)</option>
+                <option value="스킬가속">스킬가속</option>
+                <option value="명중">명중</option>
+                <option value="공격력">공격력</option>
+                <option value="방어력">방어력</option>
+                <option value="체력">체력</option>
+                <option value="치명저항">치명저항 (%)</option>
+                <option value="피해감소">피해감소 (%)</option>
+                <option value="집중">집중</option>
+              </select>
+              <input type="number" step="0.01" id="g1Sub1Val" placeholder="수치 입력" oninput="calculate()">
+            </div>
+            <div class="stat-result-line">
+              <span class="range-text" id="g1Sub1Range">수치를 입력하세요</span>
+              <div class="score-box">
+                <span class="percent-text" id="g1Sub1Pct">-</span>
+                <div class="progress-bar-bg"><div class="progress-bar-fill" id="g1Sub1Bar"></div></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-input-line">
+              <span class="badge badge-sub">보조 2</span>
+              <select id="g1Sub2Name" onchange="calculate()">
+                <option value="스킬증폭" selected>스킬증폭 (%)</option>
+                <option value="치명확률">치명확률 (%)</option>
+                <option value="치명피해">치명피해 (%)</option>
+                <option value="스킬가속">스킬가속</option>
+                <option value="명중">명중</option>
+                <option value="공격력">공격력</option>
+                <option value="방어력">방어력</option>
+                <option value="체력">체력</option>
+                <option value="치명저항">치명저항 (%)</option>
+                <option value="피해감소">피해감소 (%)</option>
+                <option value="집중">집중</option>
+              </select>
+              <input type="number" step="0.01" id="g1Sub2Val" placeholder="수치 입력" oninput="calculate()">
+            </div>
+            <div class="stat-result-line">
+              <span class="range-text" id="g1Sub2Range">수치를 입력하세요</span>
+              <div class="score-box">
+                <span class="percent-text" id="g1Sub2Pct">-</span>
+                <div class="progress-bar-bg"><div class="progress-bar-fill" id="g1Sub2Bar"></div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. 신규 획득 장비 (우측) -->
+      <div class="gear-box" id="boxGear2">
+        <div class="box-header">
+          <span class="box-title tag-new">✨ 신규 획득 장비</span>
+          <button onclick="resetGear('g2')" style="background:transparent; border:none; color:var(--text-sub); font-size:0.75rem; cursor:pointer;">초기화</button>
+        </div>
+
+        <div class="meta-row">
+          <div class="item-small">
+            <label>레벨</label>
+            <input type="number" id="g2Level" placeholder="Lv." oninput="calculate()">
+          </div>
+          <div class="item">
+            <label>등급</label>
+            <select id="g2Grade" onchange="calculate()">
+              <option value="이터널">이터널</option>
+              <option value="레전더리" selected>레전더리</option>
+            </select>
+          </div>
+          <div class="item">
+            <label>강화 단계</label>
+            <select id="g2Enh" onchange="calculate()">
+              <option value="0">+0 ~ +4 (x1.0)</option>
+              <option value="5">+5 ~ +9 (x1.3)</option>
+              <option value="10" selected>+10 ~ +14 (x1.7)</option>
+              <option value="15">+15 ~ +19 (x2.3)</option>
+              <option value="20">+20강 (x3.0)</option>
+            </select>
+          </div>
+          <div class="multiplier-tag" id="g2MultTag">x1.7</div>
+        </div>
+
+        <div class="stat-list">
+          <div class="stat-card">
+            <div class="stat-input-line">
+              <span class="badge badge-main">메인</span>
+              <select id="g2MainName" onchange="calculate()">
+                <option value="치명저항" selected>치명저항 (%)</option>
+                <option value="명중">명중</option>
+                <option value="공격력">공격력</option>
+                <option value="방어력">방어력</option>
+                <option value="체력">체력</option>
+                <option value="치명확률">치명확률 (%)</option>
+                <option value="치명피해">치명피해 (%)</option>
+                <option value="스킬증폭">스킬증폭 (%)</option>
+                <option value="피해감소">피해감소 (%)</option>
+                <option value="집중">집중</option>
+                <option value="저항">저항</option>
+                <option value="회피">회피</option>
+                <option value="스킬가속">스킬가속</option>
+              </select>
+              <input type="number" step="0.01" id="g2MainVal" placeholder="수치 입력" oninput="calculate()">
+            </div>
+            <div class="stat-result-line">
+              <span class="range-text">슬롯 고정 스탯</span>
+              <span style="color:#a78bfa; font-weight:bold; font-size:0.8rem;">고정값</span>
+            </div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-input-line">
+              <span class="badge badge-sub">보조 1</span>
+              <select id="g2Sub1Name" onchange="calculate()">
+                <option value="스킬증폭" selected>스킬증폭 (%)</option>
+                <option value="치명확률">치명확률 (%)</option>
+                <option value="치명피해">치명피해 (%)</option>
+                <option value="스킬가속">스킬가속</option>
+                <option value="명중">명중</option>
+                <option value="공격력">공격력</option>
+                <option value="방어력">방어력</option>
+                <option value="체력">체력</option>
+                <option value="치명저항">치명저항 (%)</option>
+                <option value="피해감소">피해감소 (%)</option>
+                <option value="집중">집중</option>
+              </select>
+              <input type="number" step="0.01" id="g2Sub1Val" placeholder="수치 입력" oninput="calculate()">
+            </div>
+            <div class="stat-result-line">
+              <span class="range-text" id="g2Sub1Range">수치를 입력하세요</span>
+              <div class="score-box">
+                <span class="percent-text" id="g2Sub1Pct">-</span>
+                <div class="progress-bar-bg"><div class="progress-bar-fill" id="g2Sub1Bar"></div></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-input-line">
+              <span class="badge badge-sub">보조 2</span>
+              <select id="g2Sub2Name" onchange="calculate()">
+                <option value="치명피해" selected>치명피해 (%)</option>
+                <option value="스킬증폭">스킬증폭 (%)</option>
+                <option value="치명확률">치명확률 (%)</option>
+                <option value="스킬가속">스킬가속</option>
+                <option value="명중">명중</option>
+                <option value="공격력">공격력</option>
+                <option value="방어력">방어력</option>
+                <option value="체력">체력</option>
+                <option value="치명저항">치명저항 (%)</option>
+                <option value="피해감소">피해감소 (%)</option>
+                <option value="집중">집중</option>
+              </select>
+              <input type="number" step="0.01" id="g2Sub2Val" placeholder="수치 입력" oninput="calculate()">
+            </div>
+            <div class="stat-result-line">
+              <span class="range-text" id="g2Sub2Range">수치를 입력하세요</span>
+              <div class="score-box">
+                <span class="percent-text" id="g2Sub2Pct">-</span>
+                <div class="progress-bar-bg"><div class="progress-bar-fill" id="g2Sub2Bar"></div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer-note">💡 사진을 올리거나 수치를 직접 입력하면 실시간으로 달성률(%)이 즉시 계산됩니다.</div>
+  </div>
+
+  <script>
+    const SUB_RANGES = {
+      "공격력":   { "레전더리": [131, 164],     "이터널": [266, 335] },
+      "방어력":   { "레전더리": [131, 164],     "이터널": [266, 335] },
+      "체력":     { "레전더리": [1849, 2315],   "이터널": [3755, 4701] },
+      "명중":     { "레전더리": [33, 67],       "이터널": [40, 79] },
+      "치명확률": { "레전더리": [4.0, 8.0],     "이터널": [4.8, 9.6] },
+      "치명피해": { "레전더리": [2.9, 5.8],     "이터널": [3.6, 7.2] },
+      "스킬증폭": { "레전더리": [2.4, 3.2],     "이터널": [3.2, 4.0] },
+      "치명저항": { "레전더리": [4.0, 8.0],     "이터널": [4.8, 9.6] },
+      "피해감소": { "레전더리": [1.8, 2.4],     "이터널": [2.4, 3.0] },
+      "집중":     { "레전더리": [42, 83],       "이터널": [50, 98] },
+      "스킬가속": { "레전더리": [2, 2],         "이터널": [2, 2] }
+    };
+
+    const PERCENT_STATS = ["치명확률", "치명피해", "스킬증폭", "치명저항", "피해감소"];
+
+    const STATS_MAP = {
+      "스킬증폭": /(?:스킬증폭|스킬중폭|증폭)/i,
+      "스킬가속": /(?:스킬가속|가속)/i,
+      "치명확률": /(?:치명확률|치명확|치확)/i,
+      "치명피해": /(?:치명피해|치명피|치피)/i,
+      "치명저항": /(?:치명저항|치저)/i,
+      "피해감소": /(?:피해감소|피감)/i,
+      "공격력":   /(?:공격력|공격)/i,
+      "방어력":   /(?:방어력|방어)/i,
+      "체력":     /(?:체력)/i,
+      "명중":     /(?:명중)/i,
+      "집중":     /(?:집중)/i,
+      "저항":     /(?:저항)/i,
+      "회피":     /(?:회피)/i
+    };
+
+    function getSubMultiplier(enh) {
+      if (enh >= 20) return 3.0;
+      if (enh >= 15) return 2.3;
+      if (enh >= 10) return 1.7;
+      if (enh >= 5)  return 1.3;
+      return 1.0;
+    }
+
+    const fileInput = document.getElementById('fileInput');
+    const preview = document.getElementById('preview');
+    const status = document.getElementById('status');
+
+    fileInput.addEventListener('change', (e) => {
+      if (e.target.files && e.target.files[0]) {
+        processUploadedFile(e.target.files[0]);
+      }
+    });
+
+    window.addEventListener('paste', (e) => {
+      const items = e.clipboardData.items;
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.indexOf('image') !== -1) {
+          processUploadedFile(items[i].getAsFile());
+          break;
+        }
+      }
+    });
+
+    function processUploadedFile(file) {
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        preview.src = e.target.result;
+        preview.style.display = 'block';
+        runOCRWorkflow(e.target.result);
+      };
+      reader.readAsDataURL(file);
+    }
+
+    async function runOCRWorkflow(imgSrc) {
+      status.innerText = '이미지 분석 시작 중... (수 초 소요)';
+
+      const img = new Image();
+      img.onload = async () => {
+        try {
+          status.innerText = '좌측(기존) 및 우측(신규) 팝업 정밀 분석 중...';
+          const canvasLeft = sliceImage(img, 0, 0, 0.52, 1.0);
+          const canvasRight = sliceImage(img, 0.48, 0, 0.52, 1.0);
+
+          const [resL, resR] = await Promise.all([
+            Tesseract.recognize(canvasLeft, 'kor+eng'),
+            Tesseract.recognize(canvasRight, 'kor+eng')
+          ]);
+
+          applyOcrToGear('g1', resL.data.text);
+          applyOcrToGear('g2', resR.data.text);
+          status.innerText = '양쪽 장비 분석 완료!';
+          calculate();
+        } catch (err) {
+          status.innerText = 'OCR 분석 불가 (수치를 직접 입력해 주세요)';
+          console.error(err);
+        }
+      };
+      img.src = imgSrc;
+    }
+
+    function sliceImage(img, rx, ry, rw, rh) {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width * rw;
+      canvas.height = img.height * rh;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, img.width * rx, img.height * ry, canvas.width, canvas.height, 0, 0, canvas.width, canvas.height);
+      return canvas.toDataURL();
+    }
+
+    function applyOcrToGear(prefix, rawText) {
+      // 1. 레벨 판독
+      const lvMatch = rawText.match(/Lv\.?\s*(\d{1,3})/i);
+      if (lvMatch) {
+        document.getElementById(`${prefix}Level`).value = parseInt(lvMatch[1]);
+      }
+
+      // 2. 등급 판독
+      let grade = "레전더리";
+      if (/이[터더텨]널|이터|eternal/i.test(rawText)) {
+        grade = "이터널";
+      } else if (/레전[더다]리|legend/i.test(rawText)) {
+        grade = "레전더리";
+      }
+      document.getElementById(`${prefix}Grade`).value = grade;
+
+      // 3. 강화 단계 (+0 ~ +20)
+      const enhMatches = [...rawText.matchAll(/\+\s*(\d{1,2})(?!\d|\.)/g)];
+      let enh = 15;
+      for (const m of enhMatches) {
+        const num = parseInt(m[1]);
+        if (num >= 0 && num <= 20) {
+          enh = num;
+          break;
+        }
+      }
+      let selectVal = "0";
+      if (enh >= 20) selectVal = "20";
+      else if (enh >= 15) selectVal = "15";
+      else if (enh >= 10) selectVal = "10";
+      else if (enh >= 5)  selectVal = "5";
+      document.getElementById(`${prefix}Enh`).value = selectVal;
+
+      // 4. 전역 텍스트 윈도우 기반 정밀 파싱
+      const foundStats = [];
+      for (const [canonName, regex] of Object.entries(STATS_MAP)) {
+        const globalReg = new RegExp(regex.source, 'gi');
+        let m;
+        while ((m = globalReg.exec(rawText)) !== null) {
+          foundStats.push({ name: canonName, start: m.index, end: m.index + m[0].length });
+        }
+      }
+      foundStats.sort((a, b) => a.start - b.start);
+
+      const cleanStats = [];
+      for (const s of foundStats) {
+        if (!cleanStats.some(cs => cs.start <= s.start && cs.end >= s.end)) {
+          cleanStats.push(s);
+        }
+      }
+
+      const extracted = [];
+      for (let i = 0; i < cleanStats.length; i++) {
+        const s = cleanStats[i];
+        const nextPos = (i + 1 < cleanStats.length) ? cleanStats[i + 1].start : rawText.length;
+        const windowText = rawText.substring(s.end, nextPos);
+        let numMatch = windowText.match(/([0-9]+(?:\.[0-9]+)?)/);
+        if (!numMatch) {
+          const extWindow = rawText.substring(s.end, Math.min(rawText.length, s.end + 50));
+          numMatch = extWindow.match(/([0-9]+(?:\.[0-9]+)?)/);
+        }
+        extracted.push({ name: s.name, value: numMatch ? parseFloat(numMatch[1]) : '' });
+      }
+
+      if (extracted.length > 0) {
+        setSelectOption(`${prefix}MainName`, extracted[0].name);
+        if (extracted[0].value !== '') document.getElementById(`${prefix}MainVal`).value = extracted[0].value;
+      }
+      if (extracted.length > 1) {
+        setSelectOption(`${prefix}Sub1Name`, extracted[1].name);
+        if (extracted[1].value !== '') document.getElementById(`${prefix}Sub1Val`).value = extracted[1].value;
+      }
+      if (extracted.length > 2) {
+        setSelectOption(`${prefix}Sub2Name`, extracted[2].name);
+        if (extracted[2].value !== '') document.getElementById(`${prefix}Sub2Val`).value = extracted[2].value;
+      }
+    }
+
+    function setSelectOption(elementId, value) {
+      const select = document.getElementById(elementId);
+      for (let i = 0; i < select.options.length; i++) {
+        if (select.options[i].value === value) {
+          select.selectedIndex = i;
+          return;
+        }
+      }
+    }
+
+    function evalStat(gearId, subId) {
+      const grade = document.getElementById(`${gearId}Grade`).value;
+      const enh = parseInt(document.getElementById(`${gearId}Enh`).value);
+      const mult = getSubMultiplier(enh);
+
+      const name = document.getElementById(`${gearId}${subId}Name`).value;
+      const valStr = document.getElementById(`${gearId}${subId}Val`).value;
+      const rangeEl = document.getElementById(`${gearId}${subId}Range`);
+      const pctEl = document.getElementById(`${gearId}${subId}Pct`);
+      const barEl = document.getElementById(`${gearId}${subId}Bar`);
+
+      if (valStr === '' || isNaN(parseFloat(valStr))) {
+        rangeEl.innerText = '수치를 입력하세요';
+        pctEl.innerText = '-';
+        pctEl.className = 'percent-text';
+        barEl.style.width = '0%';
+        return;
+      }
+
+      const val = parseFloat(valStr);
+      const isPercent = PERCENT_STATS.includes(name);
+      const unit = isPercent ? '%' : '';
+      const rangeInfo = SUB_RANGES[name] ? SUB_RANGES[name][grade] : null;
+
+      if (!rangeInfo) {
+        rangeEl.innerText = '고정 수치 스탯';
+        pctEl.innerText = '고정값';
+        pctEl.className = 'percent-text';
+        barEl.style.width = '100%';
+        barEl.style.background = 'var(--text-sub)';
+        return;
+      }
+
+      const min = rangeInfo[0] * mult;
+      const max = rangeInfo[1] * mult;
+
+      let pct = 100;
+      if (max > min) {
+        pct = ((val - min) / (max - min)) * 100;
+        pct = Math.max(0, Math.min(100, pct));
+      }
+
+      let pClass = pct >= 75 ? "p-high" : (pct >= 40 ? "p-mid" : "p-low");
+      let pFill = pct >= 75 ? "var(--accent-high)" : (pct >= 40 ? "var(--accent-mid)" : "var(--accent-low)");
+      const minStr = isPercent ? min.toFixed(2) : min.toFixed(1).replace(/\.0$/, '');
+      const maxStr = isPercent ? max.toFixed(2) : max.toFixed(1).replace(/\.0$/, '');
+
+      rangeEl.innerText = `이론치: ${minStr}${unit} ~ ${maxStr}${unit}`;
+      pctEl.innerText = `${pct.toFixed(1)}%`;
+      pctEl.className = `percent-text ${pClass}`;
+      barEl.style.width = `${pct}%`;
+      barEl.style.background = pFill;
+    }
+
+    function calculate() {
+      const g1Enh = parseInt(document.getElementById('g1Enh').value);
+      document.getElementById('g1MultTag').innerText = `x${getSubMultiplier(g1Enh)}`;
+      evalStat('g1', 'Sub1');
+      evalStat('g1', 'Sub2');
+
+      const g2Enh = parseInt(document.getElementById('g2Enh').value);
+      document.getElementById('g2MultTag').innerText = `x${getSubMultiplier(g2Enh)}`;
+      evalStat('g2', 'Sub1');
+      evalStat('g2', 'Sub2');
+    }
+
+    function resetGear(prefix) {
+      document.getElementById(`${prefix}Level`).value = '';
+      document.getElementById(`${prefix}MainVal`).value = '';
+      document.getElementById(`${prefix}Sub1Val`).value = '';
+      document.getElementById(`${prefix}Sub2Val`).value = '';
+      calculate();
+    }
+
+    calculate();
+  </script>
+</body>
+</html>
