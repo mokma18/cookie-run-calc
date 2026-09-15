@@ -685,11 +685,22 @@
     }
 
     function applyOcrToGear(prefix, rawText, activeSlot) {
-      // 1. 전투력 및 하단 버튼 영역 원천 차단
-      const rawLines = rawText.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
+      const lines = rawText.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
+
+      // 1. 상단 잡음 제거: Lv. 또는 등급(이터널/레전더리) 또는 +강화가 나타나는 위치부터 시작
+      let startIdx = 0;
+      for (let idx = 0; idx < lines.length; idx++) {
+        if (/(?:Lv\.?\s*\d+|이터널|레전더리|eternal|legend|^\+\s*\d+)/i.test(lines[idx])) {
+          startIdx = idx;
+          break;
+        }
+      }
+      const trimmed = lines.slice(startIdx);
+
+      // 2. 하단 잡음 제거: 전투력 및 버튼(장착, 판매 등) 감지 시 즉시 중단
       const cleanedLines = [];
-      for (const l of rawLines) {
-        if (/(?:전투력|전투|combat|power|\bcp\b|장착중|장착|판매|정리하기|모두\s*팔기)/i.test(l)) {
+      for (const l of trimmed) {
+        if (/(?:전투력|전투|combat|power|\bcp\b|장착중|장착|판매|정리하기)/i.test(l)) {
           break;
         }
         if (/[0-9]+(?:\.[0-9]+)?\s*[MKmk]/.test(l) || /\([^)]*[MKmk][^)]*\)/i.test(l)) {
@@ -700,14 +711,14 @@
 
       const filteredText = cleanedLines.join("\n");
 
-      // 2. 레벨 판독
+      // 3. 레벨 판독
       const lvMatch = filteredText.match(/Lv\.?\s*(\d{1,3})/i);
       if (lvMatch) {
         document.getElementById(`${prefix}Level`).value = parseInt(lvMatch[1]);
       }
 
-      // 3. 등급 판독 (이터널 vs 레전더리)
-      let grade = (prefix === "g1") ? "이터널" : "레전더리";
+      // 4. 등급 판독 (이터널 vs 레전더리)
+      let grade = "레전더리";
       if (/(?:이\s*[터더텨테]널?|\bETERNAL\b|\bETER\b|0[터더텨]널)/i.test(filteredText)) {
         grade = "이터널";
       } else if (/(?:레\s*전\s*[더다]리?|\bLEGEND\b)/i.test(filteredText)) {
@@ -715,24 +726,23 @@
       }
       document.getElementById(`${prefix}Grade`).value = grade;
 
-      // 4. 강화 단계 (+0 ~ +20)
+      // 5. 강화 단계 (+0 ~ +20)
       const enhMatches = [...filteredText.matchAll(/\+\s*(\d{1,2})(?!\d|\.)/g)];
-      let enh = 15;
+      let selectVal = "15";
       for (const m of enhMatches) {
         const num = parseInt(m[1]);
         if (num >= 0 && num <= 20) {
-          enh = num;
+          if (num >= 20) selectVal = "20";
+          else if (num >= 15) selectVal = "15";
+          else if (num >= 10) selectVal = "10";
+          else if (num >= 5) selectVal = "5";
+          else selectVal = "0";
           break;
         }
       }
-      let selectVal = "0";
-      if (enh >= 20) selectVal = "20";
-      else if (enh >= 15) selectVal = "15";
-      else if (enh >= 10) selectVal = "10";
-      else if (enh >= 5)  selectVal = "5";
       document.getElementById(`${prefix}Enh`).value = selectVal;
 
-      // 5. 스탯 토큰화
+      // 6. 스탯 토큰화
       const tokens = [];
       const unusedNums = [];
       for (const line of cleanedLines) {
@@ -794,7 +804,7 @@
         }
       }
 
-      // 6. 핵심: 고정 메인 스탯 vs 보조옵션 완전 분리 배정
+      // 7. 고정 메인 스탯 vs 보조옵션 완전 분리 배정
       const targetMainStat = SLOT_MAIN_MAP[activeSlot] || "명중";
       let mainVal = "";
       const subStats = [];
@@ -807,16 +817,26 @@
         }
       }
 
-      // 메인 스탯 라벨이 OCR에서 뭉개졌더라도 상단 단독 숫자(+430.50 등)를 메인 수치로 자동 채택
-      if (mainVal === "" && unusedNums.length > 0) {
-        mainVal = unusedNums[0];
+      // 메인 스탯 라벨이 뭉개졌을 경우: + 기호 수치(+430.50 등) 우선 추출 (잡음 숫자 4 등 필터링)
+      if (mainVal === "") {
+        for (const line of cleanedLines) {
+          if (/^\+\s*\d{1,2}$/.test(line.trim())) continue;
+          const m = line.match(/\+\s*([0-9]+(?:\.[0-9]+)?)/);
+          if (m) {
+            const val = parseFloat(m[1]);
+            if (val > 20 || (val > 0 && String(val).includes("."))) {
+              mainVal = val;
+              break;
+            }
+          }
+        }
       }
 
       // 메인 스탯 세팅
       setSelectOption(`${prefix}MainName`, targetMainStat);
       if (mainVal !== "") document.getElementById(`${prefix}MainVal`).value = mainVal;
 
-      // 보조옵션 1, 2는 오직 subStats에서만 순서대로 배정 (메인 스탯 자리로 밀려 들어가지 않음!)
+      // 보조옵션 1, 2는 순수하게 subStats에서만 배정
       if (subStats.length > 0) {
         setSelectOption(`${prefix}Sub1Name`, subStats[0].name);
         if (subStats[0].value !== "") document.getElementById(`${prefix}Sub1Val`).value = subStats[0].value;
@@ -826,7 +846,6 @@
         if (subStats[1].value !== "") document.getElementById(`${prefix}Sub2Val`).value = subStats[1].value;
       }
     }
-
     function setSelectOption(elementId, value) {
       const select = document.getElementById(elementId);
       if (!select) return;
