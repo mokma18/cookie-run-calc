@@ -99,11 +99,17 @@
     /* 장비명 및 슬롯 분류 행 */
     .name-slot-row {
       display: flex;
+      flex-direction: column;
       gap: 6px;
       margin-bottom: 8px;
     }
-    .name-slot-row .item-name { flex: 1.2; min-width: 0; }
-    .name-slot-row .item-slot { flex: 1; min-width: 0; }
+    @media (min-width: 480px) {
+      .name-slot-row {
+        flex-direction: row;
+      }
+      .name-slot-row .item-name { flex: 1.2; min-width: 0; }
+      .name-slot-row .item-slot { flex: 1; min-width: 0; }
+    }
     input[type="text"] {
       background: #1c212c;
       border: 1px solid #3b4252;
@@ -126,10 +132,11 @@
     .meta-row .item-small { flex: 0.7; min-width: 0; }
     label {
       display: block;
-      font-size: 0.68rem;
+      font-size: 0.72rem;
       color: var(--text-sub);
       font-weight: 600;
       margin-bottom: 3px;
+      white-space: nowrap;
     }
     select, input[type="number"] {
       background: #1c212c;
@@ -233,7 +240,7 @@
           <button onclick="resetGear('g1')" style="background:transparent; border:none; color:var(--text-sub); font-size:0.75rem; cursor:pointer;">초기화</button>
         </div>
 
-        <!-- 장비명 & 도감 슬롯 자동 분류 (이름 마지막 단어 기준) -->
+        <!-- 장비명 & 도감 슬롯 자동 분류 -->
         <div class="name-slot-row">
           <div class="item-name">
             <label>장비 이름 (끝 글자 기준 자동분류)</label>
@@ -256,6 +263,7 @@
               <option value="음식">🥪 음식 (피감) - 음식/주스/케이크/무지개인삼</option>
             </select>
           </div>
+        </div>
 
         <div class="meta-row">
           <div class="item-small">
@@ -372,7 +380,7 @@
           <button onclick="resetGear('g2')" style="background:transparent; border:none; color:var(--text-sub); font-size:0.75rem; cursor:pointer;">초기화</button>
         </div>
 
-        <!-- 장비명 & 도감 슬롯 자동 분류 (이름 마지막 단어 기준) -->
+        <!-- 장비명 & 도감 슬롯 자동 분류 -->
         <div class="name-slot-row">
           <div class="item-name">
             <label>장비 이름 (끝 글자 기준 자동분류)</label>
@@ -395,6 +403,7 @@
               <option value="음식">🥪 음식 (피감) - 음식/주스/케이크/무지개인삼</option>
             </select>
           </div>
+        </div>
 
         <div class="meta-row">
           <div class="item-small">
@@ -604,19 +613,19 @@
     }
 
     const STATS_MAP = {
-      "스킬증폭": /(?:스킬증폭|스킬중폭|증폭)/i,
-      "스킬가속": /(?:스킬가속|가속)/i,
-      "치명확률": /(?:치명확률|치명확|치확)/i,
-      "치명피해": /(?:치명피해|치명피|치피)/i,
-      "치명저항": /(?:치명저항|치저)/i,
-      "피해감소": /(?:피해감소|피감)/i,
-      "공격력":   /(?:공격력|공격)/i,
-      "방어력":   /(?:방어력|방어)/i,
+      "스킬증폭": /(?:스킬\s*[증중][폭호]?|[증중]\s*폭|스증)/i,
+      "스킬가속": /(?:스킬\s*가[속]?|가속|스가)/i,
+      "치명확률": /(?:치명\s*확[률룰]?|치확)/i,
+      "치명피해": /(?:치명\s*피[해]?|치피)/i,
+      "치명저항": /(?:치명\s*저[항]?|치저)/i,
+      "피해감소": /(?:피해\s*감[소]?|피감)/i,
+      "공격력":   /(?:공격[력]?)/i,
+      "방어력":   /(?:방어[력]?)/i,
       "체력":     /(?:체력)/i,
       "명중":     /(?:명중)/i,
       "집중":     /(?:집중)/i,
-      "저항":     /(?:저항)/i,
-      "회피":     /(?:회피)/i
+      "회피":     /(?:회피)/i,
+      "저항":     /(?:저항)/i
     };
 
     function getSubMultiplier(enh) {
@@ -665,9 +674,18 @@
       img.onload = async () => {
         try {
           status.innerText = "좌측(기존) 및 우측(신규) 팝업 정밀 분석 중...";
-          // 중앙 경계 간섭을 방지하기 위해 0~0.49(좌측), 0.51~1.0(우측)으로 분할
-          const canvasLeft = sliceImage(img, 0, 0, 0.49, 1.0);
-          const canvasRight = sliceImage(img, 0.51, 0, 0.49, 1.0);
+
+          // 모바일 세로 전체화면 스크린샷(종횡비 > 1.5)인 경우,
+          // 상단 전투 영역(대미지 숫자/프로필)과 하단 인벤토리를 제외하고 장비 팝업만 정밀 타겟팅
+          let yStart = 0;
+          let yHeight = 1.0;
+          if (img.height / img.width > 1.5) {
+            yStart = 0.38;
+            yHeight = 0.44; // 0.38 ~ 0.82 구간만 크롭
+          }
+
+          const canvasLeft = sliceImage(img, 0.02, yStart, 0.47, yHeight);
+          const canvasRight = sliceImage(img, 0.51, yStart, 0.47, yHeight);
 
           const [resL, resR] = await Promise.all([
             Tesseract.recognize(canvasLeft, "kor+eng"),
