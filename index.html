@@ -45,9 +45,9 @@
       background: var(--card-bg);
       border: 2px dashed #4b5563;
       border-radius: 10px;
-      padding: 16px 12px;
+      padding: 14px 12px;
       text-align: center;
-      margin: 10px 0 14px;
+      margin: 10px 0 12px;
       cursor: pointer;
       transition: 0.2s;
     }
@@ -66,7 +66,35 @@
     #status { margin-top: 8px; font-weight: 700; color: #60a5fa; font-size: 0.82rem; min-height: 18px; }
     .preview-img { max-height: 130px; border-radius: 6px; display: none; margin: 8px auto 0; border: 1px solid var(--border-color); }
 
-    /* 좌/우 장비 비교 그리드 (한 화면에 둘 다 표시) */
+    /* 공통 슬롯 선택 카드 (전/후 장비 종류 100% 동일) */
+    .slot-control-card {
+      background: #151922;
+      border: 1px solid #3b4252;
+      border-radius: 8px;
+      padding: 10px 12px;
+      margin-bottom: 12px;
+    }
+    .slot-label {
+      display: block;
+      font-size: 0.78rem;
+      color: var(--primary);
+      font-weight: 700;
+      margin-bottom: 5px;
+    }
+    .slot-select {
+      background: #1c212c;
+      border: 1px solid #4b5563;
+      color: #fff;
+      padding: 8px 10px;
+      border-radius: 5px;
+      font-size: 0.88rem;
+      font-weight: 600;
+      outline: none;
+      width: 100%;
+    }
+    .slot-select:focus { border-color: var(--primary); }
+
+    /* 좌/우 장비 비교 그리드 */
     .gear-grid {
       display: grid;
       grid-template-columns: 1fr;
@@ -95,33 +123,7 @@
     .tag-existing { color: #60a5fa; }
     .tag-new { color: #f59e0b; }
 
-    /* 장비 메타 정보 바 (레벨, 등급, 강화) */
-    /* 장비명 및 슬롯 분류 행 */
-    .name-slot-row {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      margin-bottom: 8px;
-    }
-    @media (min-width: 480px) {
-      .name-slot-row {
-        flex-direction: row;
-      }
-      .name-slot-row .item-name { flex: 1.2; min-width: 0; }
-      .name-slot-row .item-slot { flex: 1; min-width: 0; }
-    }
-    input[type="text"] {
-      background: #1c212c;
-      border: 1px solid #3b4252;
-      color: #fff;
-      padding: 6px 8px;
-      border-radius: 4px;
-      font-size: 0.82rem;
-      outline: none;
-      width: 100%;
-    }
-    input[type="text"]:focus { border-color: var(--primary); }
-
+    /* 메타 정보 행 (레벨, 등급, 강화) */
     .meta-row {
       display: flex;
       gap: 6px;
@@ -231,6 +233,25 @@
       <img id="preview" class="preview-img" alt="미리보기">
     </label>
 
+    <!-- 공통 장비 슬롯 선택 (전/후 장비 종류는 100% 동일) -->
+    <div class="slot-control-card">
+      <label for="sharedSlot" class="slot-label">🎯 비교 장비 종류 (오븐 도감 12종 슬롯 - 사진 업로드 시 자동 감지)</label>
+      <select id="sharedSlot" class="slot-select" onchange="onSharedSlotChange()">
+        <option value="활" selected>🏹 활 / 창 (메인: 명중)</option>
+        <option value="검">🗡️ 검 (메인: 공격력) - 대검 / 도끼 / 가위바늘</option>
+        <option value="지팡이">🪄 지팡이 (메인: 치명확률) - 지팡이 / 꿈빛지팡이</option>
+        <option value="투구">🪖 투구 (메인: 방어력) - 투구 / 모자</option>
+        <option value="갑옷">🥋 갑옷 (메인: 체력) - 갑옷 / 망토</option>
+        <option value="방패">🛡️ 방패 (메인: 회피)</option>
+        <option value="목걸이">📿 목걸이 (메인: 치명저항) - 목걸이 / 펜듈럼 / 해독제</option>
+        <option value="반지">💍 반지 (메인: 집중)</option>
+        <option value="브로치">🏵️ 브로치 (메인: 저항)</option>
+        <option value="마법물체">🔮 마법물체 (메인: 치명피해) - 마법물체 / 눈동자 / 해골 / 백합</option>
+        <option value="책">📖 책 (메인: 스킬증폭) - 책 / 마도서 / 무공비급 / 레시피북</option>
+        <option value="음식">🥪 음식 (메인: 피해감소) - 음식 / 주스 / 케이크 / 무지개인삼</option>
+      </select>
+    </div>
+
     <!-- 좌/우 장비 한 화면 동시 표시 그리드 -->
     <div class="gear-grid">
       <!-- 1. 기존 장비 (좌측) -->
@@ -238,31 +259,6 @@
         <div class="box-header">
           <span class="box-title tag-existing">🛡️ 기존 장비 (장착중)</span>
           <button onclick="resetGear('g1')" style="background:transparent; border:none; color:var(--text-sub); font-size:0.75rem; cursor:pointer;">초기화</button>
-        </div>
-
-        <!-- 장비명 & 도감 슬롯 자동 분류 -->
-        <div class="name-slot-row">
-          <div class="item-name">
-            <label>장비 이름 (끝 글자 기준 자동분류)</label>
-            <input type="text" id="g1Name" placeholder="예: 정화의 활, 광휘의 창" oninput="onGearNameChange('g1')">
-          </div>
-          <div class="item-slot">
-            <label>오븐 도감 슬롯</label>
-            <select id="g1Slot" onchange="onSlotChange('g1')">
-              <option value="검">🗡️ 검 (공격력) - 대검/도끼/가위바늘</option>
-              <option value="활" selected>🏹 활/창 (명중) - 활/창/신궁검</option>
-              <option value="지팡이">🪄 지팡이 (치확) - 지팡이/꿈빛지팡이</option>
-              <option value="투구">🪖 투구 (방어력) - 투구/모자</option>
-              <option value="갑옷">🥋 갑옷 (체력) - 갑옷/망토</option>
-              <option value="방패">🛡️ 방패 (회피) - 방패</option>
-              <option value="목걸이">📿 목걸이 (치저) - 목걸이/펜듈럼/해독제</option>
-              <option value="반지">💍 반지 (집중) - 반지</option>
-              <option value="브로치">🏵️ 브로치 (저항) - 브로치</option>
-              <option value="마법물체">🔮 마법물체 (치피) - 마법물체/눈동자/해골/백합</option>
-              <option value="책">📖 책 (스증) - 책/마도서/무공비급/레시피북</option>
-              <option value="음식">🥪 음식 (피감) - 음식/주스/케이크/무지개인삼</option>
-            </select>
-          </div>
         </div>
 
         <div class="meta-row">
@@ -282,27 +278,27 @@
             <select id="g1Enh" onchange="calculate()">
               <option value="0">+0 ~ +4 (x1.0)</option>
               <option value="5">+5 ~ +9 (x1.3)</option>
-              <option value="10" selected>+10 ~ +14 (x1.7)</option>
-              <option value="15">+15 ~ +19 (x2.3)</option>
+              <option value="10">+10 ~ +14 (x1.7)</option>
+              <option value="15" selected>+15 ~ +19 (x2.3)</option>
               <option value="20">+20강 (x3.0)</option>
             </select>
           </div>
-          <div class="multiplier-tag" id="g1MultTag">x1.7</div>
+          <div class="multiplier-tag" id="g1MultTag">x2.3</div>
         </div>
 
         <div class="stat-list">
           <div class="stat-card">
             <div class="stat-input-line">
               <span class="badge badge-main">메인</span>
-              <select id="g1MainName" onchange="calculate()">
-                <option value="치명저항" selected>치명저항 (%)</option>
-                <option value="명중">명중</option>
+              <select id="g1MainName" disabled style="opacity: 0.9; cursor: default;">
+                <option value="명중" selected>명중</option>
                 <option value="공격력">공격력</option>
                 <option value="방어력">방어력</option>
                 <option value="체력">체력</option>
                 <option value="치명확률">치명확률 (%)</option>
                 <option value="치명피해">치명피해 (%)</option>
                 <option value="스킬증폭">스킬증폭 (%)</option>
+                <option value="치명저항">치명저항 (%)</option>
                 <option value="피해감소">피해감소 (%)</option>
                 <option value="집중">집중</option>
                 <option value="저항">저항</option>
@@ -312,7 +308,7 @@
               <input type="number" step="0.01" id="g1MainVal" placeholder="수치 입력" oninput="calculate()">
             </div>
             <div class="stat-result-line">
-              <span class="range-text">슬롯 고정 스탯</span>
+              <span class="range-text" id="g1MainDesc">슬롯 고정 스탯</span>
               <span style="color:#a78bfa; font-weight:bold; font-size:0.8rem;">고정값</span>
             </div>
           </div>
@@ -380,31 +376,6 @@
           <button onclick="resetGear('g2')" style="background:transparent; border:none; color:var(--text-sub); font-size:0.75rem; cursor:pointer;">초기화</button>
         </div>
 
-        <!-- 장비명 & 도감 슬롯 자동 분류 -->
-        <div class="name-slot-row">
-          <div class="item-name">
-            <label>장비 이름 (끝 글자 기준 자동분류)</label>
-            <input type="text" id="g2Name" placeholder="예: 정화의 활, 광휘의 창" oninput="onGearNameChange('g2')">
-          </div>
-          <div class="item-slot">
-            <label>오븐 도감 슬롯</label>
-            <select id="g2Slot" onchange="onSlotChange('g2')">
-              <option value="검">🗡️ 검 (공격력) - 대검/도끼/가위바늘</option>
-              <option value="활" selected>🏹 활/창 (명중) - 활/창/신궁검</option>
-              <option value="지팡이">🪄 지팡이 (치확) - 지팡이/꿈빛지팡이</option>
-              <option value="투구">🪖 투구 (방어력) - 투구/모자</option>
-              <option value="갑옷">🥋 갑옷 (체력) - 갑옷/망토</option>
-              <option value="방패">🛡️ 방패 (회피) - 방패</option>
-              <option value="목걸이">📿 목걸이 (치저) - 목걸이/펜듈럼/해독제</option>
-              <option value="반지">💍 반지 (집중) - 반지</option>
-              <option value="브로치">🏵️ 브로치 (저항) - 브로치</option>
-              <option value="마법물체">🔮 마법물체 (치피) - 마법물체/눈동자/해골/백합</option>
-              <option value="책">📖 책 (스증) - 책/마도서/무공비급/레시피북</option>
-              <option value="음식">🥪 음식 (피감) - 음식/주스/케이크/무지개인삼</option>
-            </select>
-          </div>
-        </div>
-
         <div class="meta-row">
           <div class="item-small">
             <label>레벨</label>
@@ -422,27 +393,27 @@
             <select id="g2Enh" onchange="calculate()">
               <option value="0">+0 ~ +4 (x1.0)</option>
               <option value="5">+5 ~ +9 (x1.3)</option>
-              <option value="10" selected>+10 ~ +14 (x1.7)</option>
-              <option value="15">+15 ~ +19 (x2.3)</option>
+              <option value="10">+10 ~ +14 (x1.7)</option>
+              <option value="15" selected>+15 ~ +19 (x2.3)</option>
               <option value="20">+20강 (x3.0)</option>
             </select>
           </div>
-          <div class="multiplier-tag" id="g2MultTag">x1.7</div>
+          <div class="multiplier-tag" id="g2MultTag">x2.3</div>
         </div>
 
         <div class="stat-list">
           <div class="stat-card">
             <div class="stat-input-line">
               <span class="badge badge-main">메인</span>
-              <select id="g2MainName" onchange="calculate()">
-                <option value="치명저항" selected>치명저항 (%)</option>
-                <option value="명중">명중</option>
+              <select id="g2MainName" disabled style="opacity: 0.9; cursor: default;">
+                <option value="명중" selected>명중</option>
                 <option value="공격력">공격력</option>
                 <option value="방어력">방어력</option>
                 <option value="체력">체력</option>
                 <option value="치명확률">치명확률 (%)</option>
                 <option value="치명피해">치명피해 (%)</option>
                 <option value="스킬증폭">스킬증폭 (%)</option>
+                <option value="치명저항">치명저항 (%)</option>
                 <option value="피해감소">피해감소 (%)</option>
                 <option value="집중">집중</option>
                 <option value="저항">저항</option>
@@ -452,7 +423,7 @@
               <input type="number" step="0.01" id="g2MainVal" placeholder="수치 입력" oninput="calculate()">
             </div>
             <div class="stat-result-line">
-              <span class="range-text">슬롯 고정 스탯</span>
+              <span class="range-text" id="g2MainDesc">슬롯 고정 스탯</span>
               <span style="color:#a78bfa; font-weight:bold; font-size:0.8rem;">고정값</span>
             </div>
           </div>
@@ -488,9 +459,9 @@
             <div class="stat-input-line">
               <span class="badge badge-sub">보조 2</span>
               <select id="g2Sub2Name" onchange="calculate()">
-                <option value="치명피해" selected>치명피해 (%)</option>
+                <option value="치명확률" selected>치명확률 (%)</option>
                 <option value="스킬증폭">스킬증폭 (%)</option>
-                <option value="치명확률">치명확률 (%)</option>
+                <option value="치명피해">치명피해 (%)</option>
                 <option value="스킬가속">스킬가속</option>
                 <option value="명중">명중</option>
                 <option value="공격력">공격력</option>
@@ -518,6 +489,7 @@
   </div>
 
   <script>
+    // 0강 기준 보조옵션 이론치 최소/최대 범위
     const SUB_RANGES = {
       "공격력":   { "레전더리": [131, 164],     "이터널": [266, 335] },
       "방어력":   { "레전더리": [131, 164],     "이터널": [266, 335] },
@@ -534,6 +506,7 @@
 
     const PERCENT_STATS = ["치명확률", "치명피해", "스킬증폭", "치명저항", "피해감소"];
 
+    // 12대 슬롯별 고정 메인 스탯
     const SLOT_MAIN_MAP = {
       "검": "공격력",
       "활": "명중",
@@ -577,41 +550,6 @@
       "주스": "음식", "케이크": "음식", "인삼": "음식", "무지개인삼": "음식", "음식": "음식"
     };
 
-    function parseSlotFromName(name) {
-      if (!name) return null;
-      const clean = name.trim().replace(/[\[\]\(\)\+]/g, "").trim();
-      const words = clean.split(/\s+/);
-      const lastWord = words[words.length - 1];
-
-      // 1. 도감 규칙: 장비 이름 마지막 단어 매칭
-      for (const [kw, slot] of Object.entries(KNOWN_ITEMS)) {
-        if (lastWord.endsWith(kw)) return slot;
-      }
-      // 2. 전체 이름 내 검색 fallback
-      for (const [kw, slot] of Object.entries(KNOWN_ITEMS)) {
-        if (clean.includes(kw)) return slot;
-      }
-      return null;
-    }
-
-    function onGearNameChange(prefix) {
-      const name = document.getElementById(`${prefix}Name`).value;
-      const slot = parseSlotFromName(name);
-      if (slot) {
-        document.getElementById(`${prefix}Slot`).value = slot;
-        onSlotChange(prefix);
-      }
-    }
-
-    function onSlotChange(prefix) {
-      const slot = document.getElementById(`${prefix}Slot`).value;
-      const mainStat = SLOT_MAIN_MAP[slot];
-      if (mainStat) {
-        setSelectOption(`${prefix}MainName`, mainStat);
-        calculate();
-      }
-    }
-
     const STATS_MAP = {
       "스킬증폭": /(?:스킬\s*[증중][폭호]?|[증중]\s*폭|스증)/i,
       "스킬가속": /(?:스킬\s*가[속]?|가속|스가)/i,
@@ -627,6 +565,29 @@
       "회피":     /(?:회피)/i,
       "저항":     /(?:저항)/i
     };
+
+    function onSharedSlotChange() {
+      const slot = document.getElementById('sharedSlot').value;
+      const mainStat = SLOT_MAIN_MAP[slot] || "명중";
+
+      setSelectOption('g1MainName', mainStat);
+      document.getElementById('g1MainDesc').innerText = `슬롯 고정: ${mainStat}`;
+
+      setSelectOption('g2MainName', mainStat);
+      document.getElementById('g2MainDesc').innerText = `슬롯 고정: ${mainStat}`;
+
+      calculate();
+    }
+
+    function detectSlotFromBothTexts(textL, textR) {
+      const combined = textL + " " + textR;
+      for (const [kw, slot] of Object.entries(KNOWN_ITEMS)) {
+        if (new RegExp(kw, "i").test(combined)) {
+          return slot;
+        }
+      }
+      return null;
+    }
 
     function getSubMultiplier(enh) {
       if (enh >= 20) return 3.0;
@@ -675,8 +636,7 @@
         try {
           status.innerText = "좌측(기존) 및 우측(신규) 팝업 정밀 분석 중...";
 
-          // 모바일 세로 전체화면 스크린샷(종횡비 > 1.5)인 경우,
-          // 상단 전투 영역(대미지 숫자/프로필)과 하단 인벤토리를 제외하고 장비 팝업만 정밀 타겟팅
+          // 모바일 세로 전체화면 캡처본인 경우 상단 전투 영역과 하단 인벤토리를 제외
           let yStart = 0;
           let yHeight = 1.0;
           if (img.height / img.width > 1.5) {
@@ -692,8 +652,19 @@
             Tesseract.recognize(canvasRight, "kor+eng")
           ]);
 
-          applyOcrToGear("g1", resL.data.text);
-          applyOcrToGear("g2", resR.data.text);
+          // 1. 양쪽 텍스트를 종합 분석하여 공통 슬롯 자동 감지
+          const autoSlot = detectSlotFromBothTexts(resL.data.text, resR.data.text);
+          if (autoSlot) {
+            document.getElementById('sharedSlot').value = autoSlot;
+          }
+          onSharedSlotChange();
+
+          const activeSlot = document.getElementById('sharedSlot').value;
+
+          // 2. 각 장비 데이터 파싱 (고정 메인 스탯 vs 보조옵션 1, 2 완전 분리 배정)
+          applyOcrToGear("g1", resL.data.text, activeSlot);
+          applyOcrToGear("g2", resR.data.text, activeSlot);
+
           status.innerText = "양쪽 장비 분석 완료!";
           calculate();
         } catch (err) {
@@ -713,50 +684,18 @@
       return canvas.toDataURL();
     }
 
-    function applyOcrToGear(prefix, rawText) {
-      // 1. 전투력 및 하단 버튼 영역 원천 차단 / 제외
+    function applyOcrToGear(prefix, rawText, activeSlot) {
+      // 1. 전투력 및 하단 버튼 영역 원천 차단
       const rawLines = rawText.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
       const cleanedLines = [];
       for (const l of rawLines) {
-        // 전투력 관련 단어(전투력, 전투, CP)나 하단 버튼 텍스트가 나오면 스탯 탐색 중단
         if (/(?:전투력|전투|combat|power|\bcp\b|장착중|장착|판매|정리하기|모두\s*팔기)/i.test(l)) {
           break;
         }
-        // 77.04M, 75.95M 등 M, K 단위가 붙은 전투력 수치나 대미지 수치 제거
-        if (/[0-9]+(?:\.[0-9]+)?\s*[MKmk]/.test(l)) {
-          continue;
-        }
-        // (-1.08M) 등의 차이 표시 제거
-        if (/\([^)]*[MKmk][^)]*\)/i.test(l)) {
+        if (/[0-9]+(?:\.[0-9]+)?\s*[MKmk]/.test(l) || /\([^)]*[MKmk][^)]*\)/i.test(l)) {
           continue;
         }
         cleanedLines.push(l);
-      }
-
-      
-      // [신규] 장비 이름 추출 (Lv, 등급, 강화 및 스탯 키워드 이전 라인 추출)
-      const nameCandidates = [];
-      for (const line of cleanedLines) {
-        if (/^Lv\.?\s*\d+/i.test(line)) continue;
-        if (/^(?:이터널|레전더리|에픽|고대|eternal|legend)/i.test(line)) continue;
-        if (/^\+\s*\d+$/.test(line)) continue;
-
-        let isStatLine = false;
-        for (const pattern of Object.values(STATS_MAP)) {
-          if (pattern.test(line)) { isStatLine = true; break; }
-        }
-        if (isStatLine) break;
-        if (/^\+?[0-9]+(?:\.[0-9]+)?%?$/.test(line)) continue;
-
-        if (line.length >= 2) {
-          nameCandidates.push(line);
-        }
-      }
-
-      if (nameCandidates.length > 0) {
-        const detectedName = nameCandidates.join(" ");
-        document.getElementById(`${prefix}Name`).value = detectedName;
-        onGearNameChange(prefix);
       }
 
       const filteredText = cleanedLines.join("\n");
@@ -768,7 +707,7 @@
       }
 
       // 3. 등급 판독 (이터널 vs 레전더리)
-      let grade = "레전더리";
+      let grade = (prefix === "g1") ? "이터널" : "레전더리";
       if (/(?:이\s*[터더텨테]널?|\bETERNAL\b|\bETER\b|0[터더텨]널)/i.test(filteredText)) {
         grade = "이터널";
       } else if (/(?:레\s*전\s*[더다]리?|\bLEGEND\b)/i.test(filteredText)) {
@@ -793,19 +732,23 @@
       else if (enh >= 5)  selectVal = "5";
       document.getElementById(`${prefix}Enh`).value = selectVal;
 
-      // 5. 스탯명 및 수치 토큰화 & 정확한 1:1 페어링
+      // 5. 스탯 토큰화
       const tokens = [];
+      const unusedNums = [];
       for (const line of cleanedLines) {
-        // Lv. 표시나 단순 강화 단계 단독 행은 스탯 매칭 제외
         if (/^Lv\.?\s*\d+/i.test(line) || /^\+\s*\d+$/.test(line)) {
           continue;
         }
 
         let matchedStat = null;
-        for (const [name, pattern] of Object.entries(STATS_MAP)) {
-          if (pattern.test(line)) {
-            matchedStat = name;
-            break;
+        if (STATS_MAP["치명저항"].test(line)) {
+          matchedStat = "치명저항";
+        } else {
+          for (const [name, pattern] of Object.entries(STATS_MAP)) {
+            if (pattern.test(line)) {
+              matchedStat = name;
+              break;
+            }
           }
         }
 
@@ -813,48 +756,74 @@
         const numMatch = cleanLine.match(/([0-9]+(?:\.[0-9]+)?)/);
 
         if (matchedStat && numMatch) {
-          tokens.push({ type: "pair", stat: matchedStat, val: parseFloat(numMatch[1]) });
+          let v = parseFloat(numMatch[1]);
+          if (PERCENT_STATS.includes(matchedStat) && v > 50 && v < 5000) v = v / 100;
+          tokens.push({ type: "pair", stat: matchedStat, val: v });
         } else if (matchedStat) {
           tokens.push({ type: "stat", stat: matchedStat });
         } else if (numMatch) {
-          tokens.push({ type: "num", val: parseFloat(numMatch[1]) });
+          let v = parseFloat(numMatch[1]);
+          tokens.push({ type: "num", val: v });
+          unusedNums.push(v);
         }
       }
 
-      const extracted = [];
+      // 양방향 1:1 토큰 페어링
+      const paired = [];
       let i = 0;
       while (i < tokens.length) {
         const t = tokens[i];
         if (t.type === "pair") {
-          extracted.push({ name: t.stat, value: t.val });
+          paired.push({ name: t.stat, value: t.val });
           i += 1;
         } else if (t.type === "num" && i + 1 < tokens.length && tokens[i + 1].type === "stat") {
-          // 수치가 스탯명 윗줄에 배치된 경우
-          extracted.push({ name: tokens[i + 1].stat, value: t.val });
+          let v = t.val;
+          if (PERCENT_STATS.includes(tokens[i + 1].stat) && v > 50 && v < 5000) v = v / 100;
+          paired.push({ name: tokens[i + 1].stat, value: v });
           i += 2;
         } else if (t.type === "stat" && i + 1 < tokens.length && tokens[i + 1].type === "num") {
-          // 스탯명 아랫줄에 수치가 배치된 경우
-          extracted.push({ name: t.stat, value: tokens[i + 1].val });
+          let v = tokens[i + 1].val;
+          if (PERCENT_STATS.includes(t.stat) && v > 50 && v < 5000) v = v / 100;
+          paired.push({ name: t.stat, value: v });
           i += 2;
         } else if (t.type === "stat") {
-          extracted.push({ name: t.stat, value: "" });
+          paired.push({ name: t.stat, value: "" });
           i += 1;
         } else {
           i += 1;
         }
       }
 
-      if (extracted.length > 0) {
-        setSelectOption(`${prefix}MainName`, extracted[0].name);
-        if (extracted[0].value !== "") document.getElementById(`${prefix}MainVal`).value = extracted[0].value;
+      // 6. 핵심: 고정 메인 스탯 vs 보조옵션 완전 분리 배정
+      const targetMainStat = SLOT_MAIN_MAP[activeSlot] || "명중";
+      let mainVal = "";
+      const subStats = [];
+
+      for (const item of paired) {
+        if (item.name === targetMainStat && mainVal === "") {
+          mainVal = item.value;
+        } else {
+          subStats.push(item);
+        }
       }
-      if (extracted.length > 1) {
-        setSelectOption(`${prefix}Sub1Name`, extracted[1].name);
-        if (extracted[1].value !== "") document.getElementById(`${prefix}Sub1Val`).value = extracted[1].value;
+
+      // 메인 스탯 라벨이 OCR에서 뭉개졌더라도 상단 단독 숫자(+430.50 등)를 메인 수치로 자동 채택
+      if (mainVal === "" && unusedNums.length > 0) {
+        mainVal = unusedNums[0];
       }
-      if (extracted.length > 2) {
-        setSelectOption(`${prefix}Sub2Name`, extracted[2].name);
-        if (extracted[2].value !== "") document.getElementById(`${prefix}Sub2Val`).value = extracted[2].value;
+
+      // 메인 스탯 세팅
+      setSelectOption(`${prefix}MainName`, targetMainStat);
+      if (mainVal !== "") document.getElementById(`${prefix}MainVal`).value = mainVal;
+
+      // 보조옵션 1, 2는 오직 subStats에서만 순서대로 배정 (메인 스탯 자리로 밀려 들어가지 않음!)
+      if (subStats.length > 0) {
+        setSelectOption(`${prefix}Sub1Name`, subStats[0].name);
+        if (subStats[0].value !== "") document.getElementById(`${prefix}Sub1Val`).value = subStats[0].value;
+      }
+      if (subStats.length > 1) {
+        setSelectOption(`${prefix}Sub2Name`, subStats[1].name);
+        if (subStats[1].value !== "") document.getElementById(`${prefix}Sub2Val`).value = subStats[1].value;
       }
     }
 
@@ -937,7 +906,6 @@
     }
 
     function resetGear(prefix) {
-      document.getElementById(`${prefix}Name`).value = "";
       document.getElementById(`${prefix}Level`).value = '';
       document.getElementById(`${prefix}MainVal`).value = '';
       document.getElementById(`${prefix}Sub1Val`).value = '';
@@ -945,7 +913,8 @@
       calculate();
     }
 
-    calculate();
+    // 초기 실행
+    onSharedSlotChange();
   </script>
 </body>
 </html>
