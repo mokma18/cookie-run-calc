@@ -636,23 +636,33 @@
         try {
           status.innerText = "좌측(기존) 및 우측(신규) 팝업 정밀 분석 중...";
 
-          // 모바일 세로 전체화면 캡처본인 경우 상단 전투 영역과 하단 인벤토리를 제외
+          // 모바일 세로 전체화면 캡처본(종횡비 > 1.5)인 경우
+          // 상단 전투 화면(몬스터/대미지 숫자)과 하단 인벤토리, 좌측 메뉴 아이콘(잡음 4 등)을 정밀 제외
           let yStart = 0;
           let yHeight = 1.0;
+          let xLeft = 0;
+          let xRight = 0.51;
+          let wCard = 0.49;
+
           if (img.height / img.width > 1.5) {
             yStart = 0.38;
-            yHeight = 0.44; // 0.38 ~ 0.82 구간만 크롭
+            yHeight = 0.44; // 0.38 ~ 0.82 장비 팝업 구간
+            xLeft = 0.05;   // 좌측 메뉴 아이콘 배제
+            wCard = 0.44;
+            xRight = 0.51;
           }
 
-          const canvasLeft = sliceImage(img, 0.02, yStart, 0.47, yHeight);
-          const canvasRight = sliceImage(img, 0.51, yStart, 0.47, yHeight);
+          const canvasLeft = sliceImage(img, xLeft, yStart, wCard, yHeight);
+          const canvasRight = sliceImage(img, xRight, yStart, wCard, yHeight);
 
           const [resL, resR] = await Promise.all([
             Tesseract.recognize(canvasLeft, "kor+eng"),
             Tesseract.recognize(canvasRight, "kor+eng")
           ]);
 
-          // 1. 양쪽 텍스트를 종합 분석하여 공통 슬롯 자동 감지
+          const combinedText = resL.data.text + "\n" + resR.data.text;
+
+          // 1. 공통 슬롯 자동 감지 (오븐 도감 12종 기준)
           const autoSlot = detectSlotFromBothTexts(resL.data.text, resR.data.text);
           if (autoSlot) {
             document.getElementById('sharedSlot').value = autoSlot;
@@ -661,9 +671,26 @@
 
           const activeSlot = document.getElementById('sharedSlot').value;
 
-          // 2. 각 장비 데이터 파싱 (고정 메인 스탯 vs 보조옵션 1, 2 완전 분리 배정)
-          applyOcrToGear("g1", resL.data.text, activeSlot);
-          applyOcrToGear("g2", resR.data.text, activeSlot);
+          // 2. 공통 강화 단계 감지 (+뒤의 숫자가 강화 단계, 전/후 동일)
+          let commonEnh = 15;
+          const enhM = combinedText.match(/\+\s*(20|1[0-9]|[0-9])(?!\d|\.)/);
+          if (enhM) {
+            const v = parseInt(enhM[1]);
+            if (v <= 20) commonEnh = v;
+          }
+          let selectEnh = "0";
+          if (commonEnh >= 20) selectEnh = "20";
+          else if (commonEnh >= 15) selectEnh = "15";
+          else if (commonEnh >= 10) selectEnh = "10";
+          else if (commonEnh >= 5)  selectEnh = "5";
+
+          // 양쪽 장비에 동일한 강화 단계 적용
+          document.getElementById('g1Enh').value = selectEnh;
+          document.getElementById('g2Enh').value = selectEnh;
+
+          // 3. 각 장비 데이터 정밀 파싱
+          applyOcrToGear("g1", resL.data.text, activeSlot, selectEnh);
+          applyOcrToGear("g2", resR.data.text, activeSlot, selectEnh);
 
           status.innerText = "양쪽 장비 분석 완료!";
           calculate();
@@ -684,168 +711,118 @@
       return canvas.toDataURL();
     }
 
-    function applyOcrToGear(prefix, rawText, activeSlot) {
-      const lines = rawText.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
+    function applyOcrToGear(prefix, rawText, activeSlot, selectEnh) {
+      const lines = rawText.split(/\r?\n/).map(l => l.trim().replace(/,/g, "")).filter(l => l.length > 0);
 
-      // 1. 상단 잡음 제거: Lv. 또는 등급(이터널/레전더리) 또는 +강화가 나타나는 위치부터 시작
-      let startIdx = 0;
-      for (let idx = 0; idx < lines.length; idx++) {
-        if (/(?:Lv\.?\s*\d+|이터널|레전더리|eternal|legend|^\+\s*\d+)/i.test(lines[idx])) {
-          startIdx = idx;
-          break;
-        }
+      // (1) 레벨 판독
+      let level = "";
+      const lvM = rawText.match(/Lv\.?\s*(\d{1,3})/i);
+      if (lvM) level = parseInt(lvM[1]);
+      if (level !== "") document.getElementById(`${prefix}Level`).value = level;
+
+      // (2) 등급 판독 (이터널 vs 레전더리)
+      let grade = "레전더리";
+      if (/(?:이\s*[터더텨테]널?|\bETERNAL\b|\bETER\b|0[터더텨]널)/i.test(rawText)) {
+        grade = "이터널";
       }
-      const trimmed = lines.slice(startIdx);
+      document.getElementById(`${prefix}Grade`).value = grade;
 
-      // 2. 하단 잡음 제거: 전투력 및 버튼(장착, 판매 등) 감지 시 즉시 중단
-      const cleanedLines = [];
-      for (const l of trimmed) {
+      // (3) 강화 단계
+      if (selectEnh) {
+        document.getElementById(`${prefix}Enh`).value = selectEnh;
+      }
+
+      // (4) 전투력 및 하단 영역 컷오프
+      const cleanLines = [];
+      for (const l of lines) {
         if (/(?:전투력|전투|combat|power|\bcp\b|장착중|장착|판매|정리하기)/i.test(l)) {
           break;
         }
         if (/[0-9]+(?:\.[0-9]+)?\s*[MKmk]/.test(l) || /\([^)]*[MKmk][^)]*\)/i.test(l)) {
           continue;
         }
-        cleanedLines.push(l);
+        cleanLines.push(l);
       }
 
-      const filteredText = cleanedLines.join("\n");
-
-      // 3. 레벨 판독
-      const lvMatch = filteredText.match(/Lv\.?\s*(\d{1,3})/i);
-      if (lvMatch) {
-        document.getElementById(`${prefix}Level`).value = parseInt(lvMatch[1]);
-      }
-
-      // 4. 등급 판독 (이터널 vs 레전더리)
-      let grade = "레전더리";
-      if (/(?:이\s*[터더텨테]널?|\bETERNAL\b|\bETER\b|0[터더텨]널)/i.test(filteredText)) {
-        grade = "이터널";
-      } else if (/(?:레\s*전\s*[더다]리?|\bLEGEND\b)/i.test(filteredText)) {
-        grade = "레전더리";
-      }
-      document.getElementById(`${prefix}Grade`).value = grade;
-
-      // 5. 강화 단계 (+0 ~ +20)
-      const enhMatches = [...filteredText.matchAll(/\+\s*(\d{1,2})(?!\d|\.)/g)];
-      let selectVal = "15";
-      for (const m of enhMatches) {
-        const num = parseInt(m[1]);
-        if (num >= 0 && num <= 20) {
-          if (num >= 20) selectVal = "20";
-          else if (num >= 15) selectVal = "15";
-          else if (num >= 10) selectVal = "10";
-          else if (num >= 5) selectVal = "5";
-          else selectVal = "0";
-          break;
-        }
-      }
-      document.getElementById(`${prefix}Enh`).value = selectVal;
-
-      // 6. 스탯 토큰화
-      const tokens = [];
-      const unusedNums = [];
-      for (const line of cleanedLines) {
-        if (/^Lv\.?\s*\d+/i.test(line) || /^\+\s*\d+$/.test(line)) {
-          continue;
-        }
-
-        let matchedStat = null;
-        if (STATS_MAP["치명저항"].test(line)) {
-          matchedStat = "치명저항";
-        } else {
-          for (const [name, pattern] of Object.entries(STATS_MAP)) {
-            if (pattern.test(line)) {
-              matchedStat = name;
-              break;
-            }
-          }
-        }
-
-        const cleanLine = line.replace(/,/g, "");
-        const numMatch = cleanLine.match(/([0-9]+(?:\.[0-9]+)?)/);
-
-        if (matchedStat && numMatch) {
-          let v = parseFloat(numMatch[1]);
-          if (PERCENT_STATS.includes(matchedStat) && v > 50 && v < 5000) v = v / 100;
-          tokens.push({ type: "pair", stat: matchedStat, val: v });
-        } else if (matchedStat) {
-          tokens.push({ type: "stat", stat: matchedStat });
-        } else if (numMatch) {
-          let v = parseFloat(numMatch[1]);
-          tokens.push({ type: "num", val: v });
-          unusedNums.push(v);
-        }
-      }
-
-      // 양방향 1:1 토큰 페어링
-      const paired = [];
-      let i = 0;
-      while (i < tokens.length) {
-        const t = tokens[i];
-        if (t.type === "pair") {
-          paired.push({ name: t.stat, value: t.val });
-          i += 1;
-        } else if (t.type === "num" && i + 1 < tokens.length && tokens[i + 1].type === "stat") {
-          let v = t.val;
-          if (PERCENT_STATS.includes(tokens[i + 1].stat) && v > 50 && v < 5000) v = v / 100;
-          paired.push({ name: tokens[i + 1].stat, value: v });
-          i += 2;
-        } else if (t.type === "stat" && i + 1 < tokens.length && tokens[i + 1].type === "num") {
-          let v = tokens[i + 1].val;
-          if (PERCENT_STATS.includes(t.stat) && v > 50 && v < 5000) v = v / 100;
-          paired.push({ name: t.stat, value: v });
-          i += 2;
-        } else if (t.type === "stat") {
-          paired.push({ name: t.stat, value: "" });
-          i += 1;
-        } else {
-          i += 1;
-        }
-      }
-
-      // 7. 고정 메인 스탯 vs 보조옵션 완전 분리 배정
-      const targetMainStat = SLOT_MAIN_MAP[activeSlot] || "명중";
+      // (5) 메인 스탯 값 (+5196, +5930, +47422, +430.50 등)
       let mainVal = "";
-      const subStats = [];
-
-      for (const item of paired) {
-        if (item.name === targetMainStat && mainVal === "") {
-          mainVal = item.value;
-        } else {
-          subStats.push(item);
-        }
-      }
-
-      // 메인 스탯 라벨이 뭉개졌을 경우: + 기호 수치(+430.50 등) 우선 추출 (잡음 숫자 4 등 필터링)
-      if (mainVal === "") {
-        for (const line of cleanedLines) {
-          if (/^\+\s*\d{1,2}$/.test(line.trim())) continue;
-          const m = line.match(/\+\s*([0-9]+(?:\.[0-9]+)?)/);
-          if (m) {
-            const val = parseFloat(m[1]);
-            if (val > 20 || (val > 0 && String(val).includes("."))) {
-              mainVal = val;
-              break;
-            }
+      for (const l of cleanLines) {
+        if (/^Lv\.?\s*\d+/i.test(l) || /^\+\s*\d{1,2}$/.test(l)) continue;
+        const m = l.match(/\+\s*([0-9]+(?:\.[0-9]+)?)/);
+        if (m) {
+          const val = parseFloat(m[1]);
+          // 메인 스탯 수치는 20 초과이거나 소수점을 가짐
+          if (val > 20 || m[1].includes(".")) {
+            mainVal = val;
+            break;
           }
         }
       }
 
       // 메인 스탯 세팅
+      const targetMainStat = SLOT_MAIN_MAP[activeSlot] || "명중";
       setSelectOption(`${prefix}MainName`, targetMainStat);
       if (mainVal !== "") document.getElementById(`${prefix}MainVal`).value = mainVal;
 
-      // 보조옵션 1, 2는 순수하게 subStats에서만 배정
-      if (subStats.length > 0) {
-        setSelectOption(`${prefix}Sub1Name`, subStats[0].name);
-        if (subStats[0].value !== "") document.getElementById(`${prefix}Sub1Val`).value = subStats[0].value;
+      // (6) 서브 옵션 2개 추출 (메인 스탯 값 및 10 미만 단자리 잡음 완전 배제)
+      const subs = [];
+      let idx = 0;
+      while (idx < cleanLines.length) {
+        const l = cleanLines[idx];
+        if (/^Lv\.?\s*\d+/i.test(l) || /^\+\s*\d{1,2}$/.test(l)) { idx++; continue; }
+        // 메인 스탯 줄(+5930 등)은 보조옵션 파싱에서 건너뜀
+        if (mainVal && l.startsWith("+") && l.includes(String(mainVal))) { idx++; continue; }
+
+        let matched = null;
+        if (/치명\s*저/.test(l)) matched = "치명저항";
+        else {
+          for (const [sname, spat] of Object.entries(STATS_MAP)) {
+            if (spat.test(l)) { matched = sname; break; }
+          }
+        }
+
+        if (matched) {
+          let val = null;
+          const m1 = l.match(/([0-9]+(?:\.[0-9]+)?)\s*%?/);
+          if (m1) {
+            const v = parseFloat(m1[1]);
+            if (mainVal && v === mainVal) { idx++; continue; }
+            // %가 포함되어 있거나 10 이상이거나 소수점이 있는 정상 수치만 인정 (잡음 4 등 배제)
+            if (l.includes("%") || v >= 10 || m1[1].includes(".")) {
+              val = v;
+            }
+          }
+          if (val === null && idx + 1 < cleanLines.length) {
+            const nextL = cleanLines[idx + 1];
+            const m2 = nextL.match(/([0-9]+(?:\.[0-9]+)?)\s*%?/);
+            if (m2) {
+              const v = parseFloat(m2[1]);
+              if (mainVal && v === mainVal) { /* main stat line */ }
+              else if (nextL.includes("%") || v >= 10 || m2[1].includes(".")) {
+                val = v;
+                idx++;
+              }
+            }
+          }
+          if (matched && val !== null) {
+            if (PERCENT_STATS.includes(matched) && val > 50 && val < 5000) val = val / 100;
+            subs.push({ name: matched, val: val });
+          }
+        }
+        idx++;
       }
-      if (subStats.length > 1) {
-        setSelectOption(`${prefix}Sub2Name`, subStats[1].name);
-        if (subStats[1].value !== "") document.getElementById(`${prefix}Sub2Val`).value = subStats[1].value;
+
+      // 보조 1, 보조 2 필드 입력
+      if (subs.length > 0) {
+        setSelectOption(`${prefix}Sub1Name`, subs[0].name);
+        document.getElementById(`${prefix}Sub1Val`).value = subs[0].val;
+      }
+      if (subs.length > 1) {
+        setSelectOption(`${prefix}Sub2Name`, subs[1].name);
+        document.getElementById(`${prefix}Sub2Val`).value = subs[1].val;
       }
     }
+
     function setSelectOption(elementId, value) {
       const select = document.getElementById(elementId);
       if (!select) return;
